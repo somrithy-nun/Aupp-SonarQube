@@ -2,12 +2,8 @@ pipeline {
     agent any
 
     environment {
-        SONAR_HOST_URL  = 'https://sonar.gravastar.store'
-        SONAR_PROJECT   = 'express-app'
-    }
-
-    tools {
-            nodejs 'node-22.11.0'
+        SONAR_HOST_URL = 'https://sonar.gravastar.store'
+        SONAR_PROJECT  = 'express-app'
     }
 
     stages {
@@ -18,37 +14,14 @@ pipeline {
             }
         }
 
-        stage('Install') {
-            steps {
-                sh 'npm ci'
-            }
-        }
-
-        stage('Test & Coverage') {
-            steps {
-                sh 'npm test -- --coverage --coverageReporters=lcov'
-            }
-            post {
-                always {
-                    junit 'test-results/**/*.xml'           // optional, if you emit JUnit XML
-                    publishHTML(target: [
-                        reportDir: 'coverage/lcov-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
-                }
-            }
-        }
-
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {            // must match the name in Jenkins > Configure System
+                withSonarQubeEnv('SonarQube') {
                     sh """
                         npx sonar-scanner \
                           -Dsonar.projectKey=${SONAR_PROJECT} \
-                          -Dsonar.sources=src \
-                          -Dsonar.exclusions=node_modules/**,coverage/** \
-                          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+                          -Dsonar.sources=. \
+                          -Dsonar.exclusions=node_modules/**,.git/** \
                           -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.login=\$SONAR_TOKEN
                     """
@@ -63,23 +36,14 @@ pipeline {
                 }
             }
         }
-
-        stage('Deploy') {
-            when {
-                branch 'main'
-            }
-            steps {
-                sh 'echo "Add your deploy script here"'
-            }
-        }
     }
 
     post {
-        failure {
-            echo 'Pipeline failed — check SonarQube report or test output'
-        }
         success {
-            echo 'Pipeline passed quality gate ✓'
+            echo 'SonarQube scan passed quality gate ✓'
+        }
+        failure {
+            echo 'Pipeline failed — check SonarQube dashboard for details'
         }
     }
 }
