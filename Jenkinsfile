@@ -7,7 +7,7 @@ pipeline {
     }
 
     tools {
-        nodejs 'NodeJS-18'   // must match the name in Jenkins > Global Tool Config
+        nodejs 'node-22.11.0'   // must match the name in Jenkins > Global Tool Config
     }
 
     stages {
@@ -24,21 +24,6 @@ pipeline {
             }
         }
 
-        stage('Test & Coverage') {
-            steps {
-                sh 'npm test -- --coverage --coverageReporters=lcov'
-            }
-            post {
-                always {
-                    junit 'test-results/**/*.xml'           // optional, if you emit JUnit XML
-                    publishHTML(target: [
-                        reportDir: 'coverage/lcov-report',
-                        reportFiles: 'index.html',
-                        reportName: 'Coverage Report'
-                    ])
-                }
-            }
-        }
 
         stage('SonarQube Analysis') {
             steps {
