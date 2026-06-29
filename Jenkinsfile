@@ -6,6 +6,9 @@ pipeline {
         SONAR_PROJECT   = 'express-app'
     }
 
+    tools {
+            nodejs 'node-22.11.0'
+    }
 
     stages {
 
