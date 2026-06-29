@@ -6,9 +6,6 @@ pipeline {
         SONAR_PROJECT   = 'express-app'
     }
 
-    tools {
-        nodejs 'NodeJS-18'   // must match the name in Jenkins > Global Tool Config
-    }
 
     stages {
 
