@@ -28,17 +28,36 @@ pipeline {
         stage('Trivy Security Scan') {
             steps {
                 sh '''
+                    echo "Scanning Jenkins workspace: $WORKSPACE"
+                    ls -la "$WORKSPACE"
+                    test -f "$WORKSPACE/package-lock.json"
+                    test -f "$WORKSPACE/Dockerfile"
+
+                    set +e
                     docker run --rm \
-                      -v "$WORKSPACE:/workspace" \
+                      -v "$WORKSPACE:/workspace:ro" \
+                      -v "$WORKSPACE:/reports" \
                       "$TRIVY_IMAGE" fs \
-                        --scanners vuln,secret,config \
+                        --scanners vuln,secret,misconfig \
                         --severity HIGH,CRITICAL \
                         --ignore-unfixed \
                         --exit-code 1 \
                         --skip-dirs /workspace/node_modules \
                         --format table \
-                        --output /workspace/trivy-report.txt \
+                        --output /reports/trivy-report.txt \
                         /workspace
+                    TRIVY_EXIT_CODE=$?
+                    set -e
+
+                    if [ -f "$WORKSPACE/trivy-report.txt" ]; then
+                      echo "----- Trivy report -----"
+                      cat "$WORKSPACE/trivy-report.txt"
+                      echo "------------------------"
+                    else
+                      echo "Trivy report was not created. The Docker volume mount may not point to the real Jenkins workspace."
+                    fi
+
+                    exit $TRIVY_EXIT_CODE
                 '''
             }
             post {
