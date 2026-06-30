@@ -4,10 +4,7 @@ const connectDB = async () => {
   try {
     const mongoUri = process.env.MONGO_URI || "mongodb://aupp-sonarqube-mongo:27017/node_crud";
 
-    await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    await mongoose.connect(mongoUri);
 
     console.log("MongoDB Connected");
   } catch (error) {
