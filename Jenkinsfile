@@ -4,6 +4,7 @@ pipeline {
     environment {
         SONAR_HOST_URL  = 'https://sonar.gravastar.store'
         SONAR_PROJECT   = 'express-app'
+        TRIVY_IMAGE     = 'aquasec/trivy:latest'
     }
 
     tools {
@@ -21,6 +22,29 @@ pipeline {
         stage('Install') {
             steps {
                 sh 'npm ci'
+            }
+        }
+
+        stage('Trivy Security Scan') {
+            steps {
+                sh '''
+                    docker run --rm \
+                      -v "$WORKSPACE:/workspace" \
+                      "$TRIVY_IMAGE" fs \
+                        --scanners vuln,secret,config \
+                        --severity HIGH,CRITICAL \
+                        --ignore-unfixed \
+                        --exit-code 1 \
+                        --skip-dirs /workspace/node_modules \
+                        --format table \
+                        --output /workspace/trivy-report.txt \
+                        /workspace
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-report.txt', allowEmptyArchive: true
+                }
             }
         }
 
@@ -55,10 +79,10 @@ pipeline {
 
     post {
         failure {
-            echo 'Pipeline failed — check SonarQube report or test output'
+            echo 'Pipeline failed — check Trivy and SonarQube reports'
         }
         success {
-            echo 'Pipeline passed quality gate ✓'
+            echo 'Pipeline passed security scan and quality gate ✓'
         }
     }
 }
