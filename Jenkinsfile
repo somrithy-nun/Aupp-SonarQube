@@ -5,6 +5,7 @@ pipeline {
         SONAR_HOST_URL  = 'https://sonar.gravastar.store'
         SONAR_PROJECT   = 'express-app'
         TRIVY_IMAGE     = 'aquasec/trivy:latest'
+        APP_IMAGE       = 'aupp-sonarqube-app:latest'
     }
 
     tools {
@@ -27,42 +28,28 @@ pipeline {
 
         stage('Trivy Security Scan') {
             steps {
-                sh '''
-                    echo "Scanning Jenkins workspace: $WORKSPACE"
-                    ls -la "$WORKSPACE"
-                    test -f "$WORKSPACE/package-lock.json"
-                    test -f "$WORKSPACE/Dockerfile"
-
-                    set +e
-                    docker run --rm \
-                      -v "$WORKSPACE:/workspace:ro" \
-                      -v "$WORKSPACE:/reports" \
-                      "$TRIVY_IMAGE" fs \
-                        --scanners vuln,secret,misconfig \
-                        --severity HIGH,CRITICAL \
-                        --ignore-unfixed \
-                        --exit-code 1 \
-                        --skip-dirs /workspace/node_modules \
-                        --format table \
-                        --output /reports/trivy-report.txt \
-                        /workspace
-                    TRIVY_EXIT_CODE=$?
-                    set -e
-
-                    if [ -f "$WORKSPACE/trivy-report.txt" ]; then
-                      echo "----- Trivy report -----"
-                      cat "$WORKSPACE/trivy-report.txt"
-                      echo "------------------------"
-                    else
-                      echo "Trivy report was not created. The Docker volume mount may not point to the real Jenkins workspace."
-                    fi
-
-                    exit $TRIVY_EXIT_CODE
-                '''
+                sh 'REPORT_FILE=trivy-report.txt sh scripts/task11-trivy-code-scan.sh'
             }
             post {
                 always {
                     archiveArtifacts artifacts: 'trivy-report.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'sh scripts/task12-create-docker-image.sh'
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            steps {
+                sh 'sh scripts/task13-trivy-image-scan.sh'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-image-report.txt', allowEmptyArchive: true
                 }
             }
         }
@@ -81,19 +68,26 @@ pipeline {
                           -Dsonar.login=\$SONAR_TOKEN
                     """
                 }
+                echo "SonarQube report: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT}"
             }
         }
 
         
 
-        stage('Deploy') {
-            when {
-                branch 'main'
-            }
-            steps {
-                sh 'echo "Add your deploy script here"'
-            }
-        }
+        // stage('Deploy') {
+        //     when {
+        //         branch 'main'
+        //     }
+        //     steps {
+        //         sh '''
+        //             if [ -n "${EC2_HOST:-}" ] && [ -n "${SSH_KEY:-}" ]; then
+        //               sh scripts/task14-deploy-ec2.sh
+        //             else
+        //               echo "Skipping EC2 deploy. Set EC2_HOST and SSH_KEY to run Task 14."
+        //             fi
+        //         '''
+        //     }
+        // }
     }
 
     post {
