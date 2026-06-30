@@ -6,6 +6,10 @@ pipeline {
         SONAR_PROJECT   = 'express-app'
         TRIVY_IMAGE     = 'aquasec/trivy:latest'
         APP_IMAGE       = 'aupp-sonarqube-app:latest'
+        APP_CONTAINER   = 'aupp-sonarqube-app'
+        MONGO_CONTAINER = 'aupp-sonarqube-mongo'
+        DOCKER_NETWORK  = 'aupp-sonarqube-net'
+        APP_PORT        = '3000'
     }
 
     tools {
@@ -84,20 +88,32 @@ pipeline {
         }
 
 
-        // stage('Deploy') {
-        //     when {
-        //         branch 'main'
-        //     }
-        //     steps {
-        //         sh '''
-        //             if [ -n "${EC2_HOST:-}" ] && [ -n "${SSH_KEY:-}" ]; then
-        //               sh scripts/task14-deploy-ec2.sh
-        //             else
-        //               echo "Skipping EC2 deploy. Set EC2_HOST and SSH_KEY to run Task 14."
-        //             fi
-        //         '''
-        //     }
-        // }
+        stage('Deploy with Docker') {
+            steps {
+                sh '''
+                    docker network create "$DOCKER_NETWORK" || true
+                    docker rm -f "$APP_CONTAINER" "$MONGO_CONTAINER" || true
+
+                    docker run -d \
+                      --name "$MONGO_CONTAINER" \
+                      --network "$DOCKER_NETWORK" \
+                      --restart unless-stopped \
+                      mongo:7
+
+                    docker run -d \
+                      --name "$APP_CONTAINER" \
+                      --network "$DOCKER_NETWORK" \
+                      --restart unless-stopped \
+                      -e PORT=3000 \
+                      -e MONGO_URI="mongodb://$MONGO_CONTAINER:27017/node_crud" \
+                      -p "$APP_PORT:3000" \
+                      "$APP_IMAGE"
+
+                    docker ps --filter "name=$APP_CONTAINER" --filter "name=$MONGO_CONTAINER"
+                    echo "App deployed: http://localhost:$APP_PORT/healthz"
+                '''
+            }
+        }
     }
 
     post {
